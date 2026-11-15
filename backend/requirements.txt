@@ -1,0 +1,8 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pymongo[srv]>=4.8
+python-dotenv>=1.0
+pydantic[email]>=2.8
+PyJWT>=2.8
+pwdlib[argon2]>=0.2
+reportlab>=4.2
