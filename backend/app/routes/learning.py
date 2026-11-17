@@ -272,10 +272,73 @@ def student_progress(user=Depends(require_student)):
                      "percent": round(done / total * 100) if total else 0})
     return {"progress": rows}
 
-@router.get("/student/certificates")
-def certificates(user=Depends(require_student)):
+
+@router.get("/student/certificates/{certificate_id}/download")
+def download_certificate(
+    certificate_id: str,
+    user=Depends(require_student)
+):
     db = get_database()
-    return {"certificates": [clean(x) for x in db["certificates"].find({"user_id": user["user_id"]})]}
+
+    certificate = db["certificates"].find_one({
+        "_id": oid(certificate_id, "certificate id"),
+        "user_id": user["user_id"]
+    })
+
+    if not certificate:
+        raise HTTPException(404, "Certificate not found")
+
+    course = db["courses"].find_one({
+        "_id": oid(certificate["course_id"], "course id")
+    })
+
+    course_title = course.get("title", "LearnTrack Course") if course else "LearnTrack Course"
+
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+
+    pdf.setTitle("LearnTrack Completion Certificate")
+    pdf.setFont("Helvetica-Bold", 24)
+    pdf.drawCentredString(width / 2, height - 150, "CERTIFICATE OF COMPLETION")
+
+    pdf.setFont("Helvetica", 14)
+    pdf.drawCentredString(width / 2, height - 220, "This certificate is proudly presented to")
+
+    pdf.setFont("Helvetica-Bold", 22)
+    pdf.drawCentredString(width / 2, height - 270, user.get("name", "Student"))
+
+    pdf.setFont("Helvetica", 14)
+    pdf.drawCentredString(width / 2, height - 330, "For successfully completing")
+
+    pdf.setFont("Helvetica-Bold", 18)
+    pdf.drawCentredString(width / 2, height - 370, course_title)
+
+    pdf.setFont("Helvetica", 11)
+    pdf.drawCentredString(
+        width / 2, height - 440,
+        f"Certificate ID: {certificate['certificate_code']}"
+    )
+
+    pdf.drawCentredString(
+        width / 2, height - 465,
+        f"Issued: {certificate['issued_at'].strftime('%d-%m-%Y')}"
+    )
+
+    pdf.setFont("Helvetica-Bold", 14)
+    pdf.drawCentredString(width / 2, height - 540, "LearnTrack")
+
+    pdf.save()
+    buffer.seek(0)
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition":
+                f'attachment; filename="LearnTrack-{certificate["certificate_code"]}.pdf"'
+        }
+    )
 
 @router.get("/admin/students")
 def admin_students(user=Depends(require_admin)):
